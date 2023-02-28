@@ -32,5 +32,5 @@ const studentRouter = require("./routs/students.js");
 app.use("/student", studentRouter);
 
 app.listen(PORT, () =>
-    console.log(`server is up and running on port ${PORT}`))
+    console.log(`server is up and running on port ${PORT}`));
 

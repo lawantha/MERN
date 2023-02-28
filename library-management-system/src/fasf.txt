@@ -1,0 +1,154 @@
+{
+  id: '110832669076325712603',
+  displayName: 'Pasindu Bandara',
+  name: { familyName: 'Bandara', givenName: 'Pasindu' },
+  emails: [ { value: 'pasindubandara42@gmail.com', verified: true } ],
+  photos: [
+    {
+      value: 'https://lh3.googleusercontent.com/a/AEdFTp69IoIPe-FpzI6z3qit69KKHGlnmXwsYLqgGztG=s96-c'
+    }
+  ],
+  provider: 'google',
+  _raw: '{\n' +
+    '  "sub": "110832669076325712603",\n' +
+    '  "name": "Pasindu Bandara",\n' +
+    '  "given_name": "Pasindu",\n' +
+    '  "family_name": "Bandara",\n' +
+    '  "picture": "https://lh3.googleusercontent.com/a/AEdFTp69IoIPe-FpzI6z3qit69KKHGlnmXwsYLqgGztG\\u003ds96-c",\n' +
+    '  "email": "pasindubandara42@gmail.com",\n' +
+    '  "email_verified": true,\n' +
+    '  "locale": "en"\n' +
+    '}',
+  _json: {
+    sub: '110832669076325712603',
+    name: 'Pasindu Bandara',
+    given_name: 'Pasindu',
+    family_name: 'Bandara',
+    picture: 'https://lh3.googleusercontent.com/a/AEdFTp69IoIPe-FpzI6z3qit69KKHGlnmXwsYLqgGztG=s96-c',
+    email: 'pasindubandara42@gmail.com',
+    email_verified: true,
+    locale: 'en'
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+import 'dotenv/config';
+import express from 'express'; //npm install express cors dotenv
+import cors from 'cors';
+import config from './configs'
+import passport from 'passport';
+import session from 'express-session';
+import MongoStore from 'connect-mongo'
+import { connect } from './utils/db.connection'
+import { googleAuth } from './configs/google.config'
+import { routesInit } from './api/routes'
+
+const app = express(); //express constructor
+const PORT = process.env.PORT || "8090";
+
+app.use(cors({ origin: "http://localhost:3000" })); //to use cors pkg
+app.use(express.json({ limit: "10mb" })); //limit data coming from request body
+
+//for auth (connect-mongo dependency)
+app.use(
+    session({
+        secret: config.SESSION_SECRET,
+        resave: false,
+        saveUninitialized: false,
+        store: MongoStore.create({ mongoUrl: config.DB_CONNECTION_STRING }),
+        cookie: {
+            secure: false,
+            expires
+                : new Date(Date.now() + 10000),
+            maxAge: 10000
+        }
+    })
+)
+app.use(passport.initialize());
+app.use(passport.session());
+
+app.get("/", (req, res, next) => {
+    res.send("<a href='http://localhost:8090/auth/google'>auth</a>");
+    next();
+});
+
+app.listen(PORT, () => {
+    console.log(`server is up and running on port ${PORT}`);
+    connect();
+    routesInit(app, passport);
+    googleAuth(passport);
+});
+
+
+
+
+
+
+
+
+
+
+
+
+import passport from 'passport';
+import GoogleStrategy from 'passport-google-oauth20';
+import config from './index'
+import User from '../api/models/user.model'
+
+const googleAuth = (passport) => {
+    GoogleStrategy.Strategy;
+    passport.use(
+        new GoogleStrategy(
+            {
+                clientID: config.GOOGLE_CLIENT_ID,
+                clientSecret: config.GOOGLE_CLIENT_SECRET,
+                callbackURL: config.GOOGLE_REDERECT_URL
+            }, async (accessToken, refreshToken, profile, callback) => {
+
+                const userOBJ = {
+                    googleID: profile.id,
+                    displayName: profile.displayName,
+                    gmail: profile.emails[0].value,
+                    image: profile.photos[0].value,
+                    firstName: profile.name.givenName,
+                    lastName: profile.name.familyName
+                }
+
+                //select * from user where googleId=profile.id
+                let user = await User.findOne({ googleId: profile, id });
+
+                if (user) {
+                    return callback(null, profile);
+                }
+
+                User.create(userOBJ)
+                    .then((user) => {
+                        return callback(null, user);
+                    })
+                    .catch((err) => {
+                        return callback(err.message);
+                    });
+
+            }));
+
+    passport.serializeUser((user, callback) => {
+        callback(null, user.id);
+    });
+
+    passport.deserializeUser((id, callback) => {
+        User.findById(id, (err, user) => {
+            callback(err, user)
+        });
+    });
+};
+
+export { googleAuth };
